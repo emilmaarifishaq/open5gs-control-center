@@ -25,3 +25,21 @@ test("server-renders the Open5GS operations dashboard", async () => {
   assert.match(html, /Registered UE/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview/);
 });
+
+test("exposes a read-only Open5GS health endpoint", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("health-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/open5gs/health"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const payload = await response.json();
+  assert.equal(payload.mode, "demo");
+  assert.equal(payload.coreStatus, "healthy");
+  assert.ok(payload.networkFunctions.some((nf) => nf.name === "AMF"));
+});

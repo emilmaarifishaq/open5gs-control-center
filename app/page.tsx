@@ -1,11 +1,9 @@
-const networkFunctions = [
-  { name: "AMF", role: "Access & Mobility", latency: "12 ms", status: "Healthy" },
-  { name: "SMF", role: "Session Management", latency: "18 ms", status: "Healthy" },
-  { name: "UPF", role: "User Plane", latency: "8 ms", status: "Healthy" },
-  { name: "NRF", role: "NF Repository", latency: "14 ms", status: "Healthy" },
-];
+import { getCoreHealth } from "../lib/open5gs/health";
 
-export default function Home() {
+export default async function Home() {
+  const health = await getCoreHealth();
+  const isHealthy = health.coreStatus === "healthy";
+  const sourceLabel = health.mode === "live" ? "Live agent" : "Demo data";
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -18,13 +16,13 @@ export default function Home() {
           <a className="nav-item" href="#logs"><span>05</span>Logs</a>
           <a className="nav-item" href="#configuration"><span>06</span>Configuration</a>
         </nav>
-        <div className="sidebar-foot"><span className="pulse" /> Core connected<small>Jakarta Lab · v2.8.0</small></div>
+        <div className="sidebar-foot"><span className={`pulse ${isHealthy ? "" : "offline"}`} /> {isHealthy ? "Core connected" : "Core unavailable"}<small>Jakarta Lab · {sourceLabel}</small></div>
       </aside>
 
       <section className="workspace" id="overview">
         <header className="topbar">
-          <div><p className="eyebrow">NETWORK OVERVIEW</p><h1>Core network is healthy</h1><p className="subtle">Live operational view of your 5G standalone core.</p></div>
-          <div className="top-actions"><span className="last-sync">Updated just now</span><button type="button">Add subscriber</button><div className="avatar">EM</div></div>
+          <div><p className="eyebrow">NETWORK OVERVIEW · {sourceLabel.toUpperCase()}</p><h1>{isHealthy ? "Core network is healthy" : "Core network is unavailable"}</h1><p className="subtle">Read-only operational view of your 5G standalone core.</p></div>
+          <div className="top-actions"><span className="last-sync">Checked just now</span><button type="button">Add subscriber</button><div className="avatar">EM</div></div>
         </header>
 
         <div className="metrics-grid">
@@ -45,7 +43,7 @@ export default function Home() {
               <div className="node primary"><small>CONTROL</small><b>AMF</b><span>Healthy</span></div><div className="connector"><span>SBI</span></div>
               <div className="node"><small>DISCOVERY</small><b>NRF</b><span>Healthy</span></div>
             </div>
-            <div className="nf-list">{networkFunctions.map((nf)=><div className="nf-row" key={nf.name}><span className="nf-monogram">{nf.name.slice(0,2)}</span><div><b>{nf.name}</b><small>{nf.role}</small></div><span className="latency">{nf.latency}</span><span className="status"><i />{nf.status}</span></div>)}</div>
+            <div className="nf-list">{health.networkFunctions.map((nf)=><div className="nf-row" key={nf.name}><span className="nf-monogram">{nf.name.slice(0,2)}</span><div><b>{nf.name}</b><small>{nf.role}</small></div><span className="latency">{nf.latencyMs === null ? "—" : `${nf.latencyMs} ms`}</span><span className={`status ${nf.status}`}><i />{nf.status[0].toUpperCase()+nf.status.slice(1)}</span></div>)}</div>
           </article>
 
           <article className="panel activity" id="sessions">

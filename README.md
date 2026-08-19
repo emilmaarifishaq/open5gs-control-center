@@ -10,6 +10,8 @@ A web-based operations interface for Open5GS. The current milestone is a respons
 - Simplified gNB → AMF → NRF service topology
 - Recent operational event stream
 - Responsive desktop and mobile layout
+- Read-only `GET /api/open5gs/health` integration contract
+- Demo/live adapter with safe timeout and unavailable-state fallback
 
 The dashboard currently uses representative data. It does not execute privileged service commands or connect to a production Open5GS database yet.
 
@@ -25,6 +27,21 @@ The management API will expose a constrained interface to:
 - validated YAML configuration with automatic backups
 
 The browser must never receive direct database credentials, unrestricted shell access, or filesystem access.
+
+## Connect an Open5GS agent
+
+Copy `.env.example` to `.env.local`, then set `OPEN5GS_AGENT_URL` to the management agent reachable from the Control Center server. The optional `OPEN5GS_AGENT_TOKEN` is sent only from the server as a bearer token. Without an agent URL, the application stays in clearly labelled demo mode.
+
+The agent health endpoint is expected at `GET /v1/health` and must return:
+
+```json
+{
+  "coreStatus": "healthy",
+  "networkFunctions": [
+    { "name": "AMF", "role": "Access & Mobility", "latencyMs": 12, "status": "healthy" }
+  ]
+}
+```
 
 ## Run locally
 
