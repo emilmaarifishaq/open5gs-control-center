@@ -43,6 +43,8 @@ The agent health endpoint is expected at `GET /v1/health` and must return:
 }
 ```
 
+The repository includes a dependency-free reference agent in `agent/`. It checks an allowlist of Open5GS systemd services, requires bearer authentication for `/v1/health`, and exposes no mutation or shell endpoint. `/healthz` is an unauthenticated process-level liveness check.
+
 ## Run locally
 
 Requirements: Node.js 22.13 or newer.
