@@ -1,0 +1,16 @@
+[Unit]
+Description=UERANSIM gNodeB in isolated namespace
+After=ueransim-netns.service open5gs-amfd.service open5gs-upfd.service
+Requires=ueransim-netns.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/papibarra/UERANSIM
+ExecStartPre=/bin/bash -c 'for i in {1..30}; do /usr/bin/ss -l -n -A sctp | /usr/bin/grep -q "192.168.64.2:38412" && exit 0; /usr/bin/sleep 1; done; exit 1'
+ExecStart=/usr/sbin/ip netns exec ueransim /home/papibarra/UERANSIM/build/nr-gnb -c /home/papibarra/UERANSIM/config/open5gs-gnb.yaml
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=UERANSIM User Equipment
+After=ueransim-gnb.service
+Requires=ueransim-gnb.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/UERANSIM
+ExecStart=%h/UERANSIM/build/nr-ue -c %h/UERANSIM/config/open5gs-ue.yaml
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

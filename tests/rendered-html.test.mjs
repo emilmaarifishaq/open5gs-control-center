@@ -1,45 +1,7 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-}
-
-test("server-renders the Open5GS operations dashboard", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.match(html, /<title>Open5GS Control Center<\/title>/i);
-  assert.match(html, /Core network is healthy/);
-  assert.match(html, /Network functions/);
-  assert.match(html, /Registered UE/);
-  assert.doesNotMatch(html, /codex-preview|SkeletonPreview/);
-});
-
-test("exposes a read-only Open5GS health endpoint", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("health-test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  const response = await worker.fetch(
-    new Request("http://localhost/api/open5gs/health"),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("cache-control"), "no-store");
-  const payload = await response.json();
-  assert.equal(payload.mode, "demo");
-  assert.equal(payload.coreStatus, "healthy");
-  assert.ok(payload.networkFunctions.some((nf) => nf.name === "AMF"));
-});
+import assert from "node:assert/strict";import test from "node:test";
+async function request(path){const workerUrl=new URL("../dist/server/index.js",import.meta.url);workerUrl.searchParams.set("test",`${path}-${Date.now()}`);const{default:worker}=await import(workerUrl.href);return worker.fetch(new Request(`http://localhost${path}`,{headers:{accept:"text/html"}}),{ASSETS:{fetch:async()=>new Response("Not found",{status:404})}},{waitUntil(){},passThroughOnException(){}})}
+test("renders overview and core navigation",async()=>{const response=await request("/");assert.equal(response.status,200);const html=await response.text();assert.match(html,/Open5GS Control Center/);assert.match(html,/EPC Network/);assert.match(html,/5G Core Network/)});
+test("renders EPC and 5G operator views",async()=>{for(const [path,label,node] of [["/epc","EPC / 4G Core","S/PGW-C"],["/5gc","5G Core Network","AMF"]]){const response=await request(path);assert.equal(response.status,200);const html=await response.text();assert.match(html,new RegExp(label));assert.match(html,new RegExp(node));assert.match(html,/Primary service path/);assert.match(html,/Full topology and interfaces/)}});
+test("renders representative node details",async()=>{for(const path of ["/nodes/amf","/nodes/spgwc","/nodes/upf"]){const response=await request(path);assert.equal(response.status,200);const html=await response.text();assert.match(html,/Operational detail/);assert.match(html,/Connected nodes/);assert.match(html,/YAML config/);assert.match(html,/Service log/);assert.match(html,/SAFE OPERATIONS/)}});
+test("renders UERANSIM access nodes",async()=>{for(const [path,label,config] of [["/nodes/gnb","UERANSIM gNodeB","open5gs-gnb.yaml"],["/nodes/ue-5g","UERANSIM User Equipment","open5gs-ue.yaml"]]){const response=await request(path);assert.equal(response.status,200);const html=await response.text();assert.match(html,new RegExp(label));assert.match(html,new RegExp(config));assert.match(html,/ueransim-/)}});
+test("exposes read-only health endpoint",async()=>{const response=await request("/api/open5gs/health");assert.equal(response.status,200);assert.equal(response.headers.get("cache-control"),"no-store");const data=await response.json();assert.equal(data.coreStatus,"healthy");assert.ok(data.networkFunctions.some(n=>n.name==="AMF"))});

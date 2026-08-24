@@ -1,0 +1,17 @@
+[Unit]
+Description=Open5GS Control Center
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/open5gs-control-center
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=-%h/.config/open5gs-control-center.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

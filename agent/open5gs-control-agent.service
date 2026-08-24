@@ -13,6 +13,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+ReadWritePaths=%h/open5gs-control-agent/pending
 
 [Install]
 WantedBy=default.target
