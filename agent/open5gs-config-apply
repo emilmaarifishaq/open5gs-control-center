@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Apply one allowlisted Open5GS/UERANSIM YAML file with backup and rollback."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import yaml
+
+OWNER_HOME = Path("/home/papibarra")
+PENDING_DIR = OWNER_HOME / "open5gs-control-agent" / "pending"
+BACKUP_DIR = OWNER_HOME / "open5gs-backups" / "config-edits"
+
+TARGETS = {
+    "amf": (Path("/etc/open5gs/amf.yaml"), ["open5gs-amfd", "ueransim-gnb", "ueransim-ue"]),
+    "ausf": (Path("/etc/open5gs/ausf.yaml"), ["open5gs-ausfd"]),
+    "bsf": (Path("/etc/open5gs/bsf.yaml"), ["open5gs-bsfd"]),
+    "hss": (Path("/etc/open5gs/hss.yaml"), ["open5gs-hssd"]),
+    "mme": (Path("/etc/open5gs/mme.yaml"), ["open5gs-mmed"]),
+    "nrf": (Path("/etc/open5gs/nrf.yaml"), ["open5gs-nrfd"]),
+    "nssf": (Path("/etc/open5gs/nssf.yaml"), ["open5gs-nssfd"]),
+    "pcf": (Path("/etc/open5gs/pcf.yaml"), ["open5gs-pcfd"]),
+    "pcrf": (Path("/etc/open5gs/pcrf.yaml"), ["open5gs-pcrfd"]),
+    "scp": (Path("/etc/open5gs/scp.yaml"), ["open5gs-scpd"]),
+    "sepp": (Path("/etc/open5gs/sepp.yaml"), ["open5gs-seppd"]),
+    "sgwc": (Path("/etc/open5gs/sgwc.yaml"), ["open5gs-sgwcd"]),
+    "sgwu": (Path("/etc/open5gs/sgwu.yaml"), ["open5gs-sgwud"]),
+    "smf": (Path("/etc/open5gs/smf.yaml"), ["open5gs-smfd", "open5gs-upfd", "ueransim-gnb", "ueransim-ue"]),
+    "spgwc": (Path("/etc/open5gs/smf.yaml"), ["open5gs-smfd"]),
+    "udm": (Path("/etc/open5gs/udm.yaml"), ["open5gs-udmd"]),
+    "udr": (Path("/etc/open5gs/udr.yaml"), ["open5gs-udrd"]),
+    "upf": (Path("/etc/open5gs/upf.yaml"), ["open5gs-smfd", "open5gs-upfd", "ueransim-gnb", "ueransim-ue"]),
+    "gnb": (OWNER_HOME / "UERANSIM/config/open5gs-gnb.yaml", ["ueransim-gnb", "ueransim-ue"]),
+    "ue-5g": (OWNER_HOME / "UERANSIM/config/open5gs-ue.yaml", ["ueransim-ue"]),
+}
+
+
+def run(*args: str) -> None:
+    subprocess.run(args, check=True, timeout=20)
+
+
+def main() -> int:
+    if os.geteuid() != 0 or len(sys.argv) != 2 or sys.argv[1] not in TARGETS:
+        print("Invalid or unauthorized configuration target", file=sys.stderr)
+        return 2
+    slug = sys.argv[1]
+    target, services = TARGETS[slug]
+    candidate = PENDING_DIR / f"{slug}.yaml"
+    if not candidate.is_file() or candidate.is_symlink() or candidate.stat().st_size > 131072:
+        print("Pending configuration is missing or invalid", file=sys.stderr)
+        return 2
+    try:
+        document = yaml.safe_load(candidate.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as error:
+        print(f"YAML validation failed: {error}", file=sys.stderr)
+        return 2
+    if not isinstance(document, dict) or not document:
+        print("YAML root must be a non-empty mapping", file=sys.stderr)
+        return 2
+
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    backup = BACKUP_DIR / f"{slug}-{stamp}.yaml"
+    shutil.copy2(target, backup)
+    staged = target.with_name(f".{target.name}.codex-new")
+    shutil.copyfile(candidate, staged)
+    shutil.copymode(target, staged)
+    os.chown(staged, target.stat().st_uid, target.stat().st_gid)
+    os.replace(staged, target)
+    try:
+        for service in services:
+            run("systemctl", "restart", service)
+            run("systemctl", "is-active", "--quiet", service)
+    except (OSError, subprocess.SubprocessError) as error:
+        shutil.copy2(backup, target)
+        for service in services:
+            subprocess.run(["systemctl", "restart", service], check=False, timeout=20)
+        print(f"Apply failed; backup restored: {error}", file=sys.stderr)
+        return 1
+    candidate.unlink(missing_ok=True)
+    print(f"Applied {slug}; backup={backup}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

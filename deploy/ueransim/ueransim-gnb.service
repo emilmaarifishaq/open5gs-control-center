@@ -1,0 +1,13 @@
+[Unit]
+Description=UERANSIM gNodeB
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/UERANSIM
+ExecStart=%h/UERANSIM/build/nr-gnb -c %h/UERANSIM/config/open5gs-gnb.yaml
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

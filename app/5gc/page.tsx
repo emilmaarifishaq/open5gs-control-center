@@ -1,0 +1,1 @@
+import type {Metadata} from "next";import {CorePage} from "../_components/CorePage";export const metadata:Metadata={title:"5G Core",description:"Open5GS 5G Core topology and network functions."};export default function Page(){return <CorePage core="5gc"/>}

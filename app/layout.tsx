@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Open5GS Control Center",
+  title: { default: "Open5GS Control Center", template: "%s | Open5GS Control Center" },
   description: "A clear operational interface for Open5GS networks.",
   icons: {
     icon: "/favicon.svg",
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

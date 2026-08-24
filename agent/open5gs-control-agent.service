@@ -1,0 +1,19 @@
+[Unit]
+Description=Open5GS Control Center Read-Only Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/open5gs-control-agent/server.py
+EnvironmentFile=%h/.config/open5gs-control-agent.env
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/open5gs-control-agent/pending
+
+[Install]
+WantedBy=default.target

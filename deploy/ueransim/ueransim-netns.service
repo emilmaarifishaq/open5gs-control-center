@@ -1,0 +1,14 @@
+[Unit]
+Description=UERANSIM isolated network namespace
+Before=ueransim-gnb.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/ueransim-netns-up
+ExecStop=/usr/local/sbin/ueransim-netns-down
+
+[Install]
+WantedBy=multi-user.target

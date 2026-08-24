@@ -1,0 +1,1 @@
+import type {Metadata} from "next";import {CorePage} from "../_components/CorePage";export const metadata:Metadata={title:"EPC / 4G Core",description:"Open5GS Evolved Packet Core topology and network functions."};export default function Page(){return <CorePage core="epc"/>}
