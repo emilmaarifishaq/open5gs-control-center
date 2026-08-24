@@ -591,7 +591,56 @@ sudo journalctl -u open5gs-amfd -n 100 --no-pager
 - Confirm `python3-yaml`, the sudoers rule, helper path, pending directory, and target paths.
 - Inspect timestamped backups under `~/open5gs-backups/config-edits`.
 
-## 16. Updating
+## 16. Enable Open5GS Prometheus metrics
+
+Control Center reads the native Open5GS exporters directly from inside the Ubuntu VM. Current Open5GS releases provide metrics for AMF, SMF, and MME. Keep these listeners on loopback; they do not need to be exposed to the LAN.
+
+Add or confirm the following top-level section in each file:
+
+`/etc/open5gs/amf.yaml`:
+
+```yaml
+metrics:
+  server:
+    - address: 127.0.0.5
+      port: 9090
+```
+
+`/etc/open5gs/smf.yaml`:
+
+```yaml
+metrics:
+  server:
+    - address: 127.0.0.4
+      port: 9090
+```
+
+`/etc/open5gs/mme.yaml`:
+
+```yaml
+metrics:
+  server:
+    - address: 127.0.0.2
+      port: 9090
+```
+
+Validate the YAML and restart only these three services:
+
+```bash
+sudo open5gs-amfd -t -c /etc/open5gs/amf.yaml
+sudo open5gs-smfd -t -c /etc/open5gs/smf.yaml
+sudo open5gs-mmed -t -c /etc/open5gs/mme.yaml
+sudo systemctl restart open5gs-amfd open5gs-smfd open5gs-mmed
+curl http://127.0.0.5:9090/metrics
+curl http://127.0.0.4:9090/metrics
+curl http://127.0.0.2:9090/metrics
+```
+
+Restart the Control Center agent after deploying its updated `server.py`. The dashboard polls the agent every 10 seconds and will show exporter state, active UE, PDU sessions, memory, and CPU time automatically. Endpoint overrides are available through `OPEN5GS_AMF_METRICS_URL`, `OPEN5GS_SMF_METRICS_URL`, and `OPEN5GS_MME_METRICS_URL` in the agent service environment.
+
+Open5GS upstream reference: [Prometheus Metrics](https://open5gs.org/open5gs/docs/tutorial/04-metrics-prometheus/).
+
+## 17. Updating
 
 Control Center:
 

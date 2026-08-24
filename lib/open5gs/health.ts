@@ -12,6 +12,19 @@ export type CoreHealth = {
   networkFunctions: NetworkFunctionHealth[];
   accessInterfaces?: AccessInterfaceHealth[];
   endToEnd?: EndToEndHealth;
+  metrics?: Open5GSMetrics;
+};
+
+export type Open5GSMetrics = {
+  available: boolean; availableSources: number; totalSources: number;
+  activeUes: number; pduSessions: number; processResidentMemoryBytes: number; processCpuSeconds: number;
+  sources: { name: string; available: boolean; latencyMs: number | null; metricCount: number }[];
+};
+
+const unavailableMetrics: Open5GSMetrics = {
+  available: false, availableSources: 0, totalSources: 3, activeUes: 0, pduSessions: 0,
+  processResidentMemoryBytes: 0, processCpuSeconds: 0,
+  sources: ["AMF", "SMF", "MME"].map((name) => ({ name, available: false, latencyMs: null, metricCount: 0 })),
 };
 
 export type EndToEndHealth = {
@@ -75,7 +88,7 @@ export async function getCoreHealth(): Promise<CoreHealth> {
   const agentUrl = process.env.OPEN5GS_AGENT_URL?.replace(/\/$/, "");
 
   if (!agentUrl) {
-    return { mode: "demo", coreStatus: "healthy", checkedAt: new Date().toISOString(), networkFunctions: demoFunctions };
+    return { mode: "demo", coreStatus: "healthy", checkedAt: new Date().toISOString(), networkFunctions: demoFunctions, metrics: unavailableMetrics };
   }
 
   try {
@@ -100,6 +113,7 @@ export async function getCoreHealth(): Promise<CoreHealth> {
       checkedAt: new Date().toISOString(),
       networkFunctions: demoFunctions.map((nf) => ({ ...nf, latencyMs: null, status: "unavailable" })),
       accessInterfaces: fallbackAccessInterfaces([]),
+      metrics: unavailableMetrics,
     };
   }
 }

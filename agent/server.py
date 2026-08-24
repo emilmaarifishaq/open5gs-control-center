@@ -9,6 +9,8 @@ import os
 import subprocess
 import time
 import re
+import urllib.error
+import urllib.request
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -66,6 +68,69 @@ AMF_NGAP_PORT = 38412
 E2E_STATUS_FILE = Path.home() / "open5gs-control-agent" / "ueransim-e2e-status.json"
 PENDING_DIR = Path.home() / "open5gs-control-agent" / "pending"
 CONFIG_APPLY_HELPER = "/usr/local/sbin/open5gs-config-apply"
+PROMETHEUS_ENDPOINTS = {
+    "AMF": os.environ.get("OPEN5GS_AMF_METRICS_URL", "http://127.0.0.5:9090/metrics"),
+    "SMF": os.environ.get("OPEN5GS_SMF_METRICS_URL", "http://127.0.0.4:9090/metrics"),
+    "MME": os.environ.get("OPEN5GS_MME_METRICS_URL", "http://127.0.0.2:9090/metrics"),
+}
+
+
+def _prometheus_values(content: str) -> dict[str, float]:
+    values: dict[str, float] = {}
+    for line in content.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        match = re.match(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{[^}]*\})?\s+(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$", line.strip())
+        if not match:
+            continue
+        name, raw = match.groups()
+        values[name] = values.get(name, 0.0) + float(raw)
+    return values
+
+
+def _first_metric(values: dict[str, float], *names: str) -> float | None:
+    for name in names:
+        if name in values:
+            return values[name]
+    return None
+
+
+def prometheus_health() -> dict[str, object]:
+    """Collect a small allowlisted summary from local Open5GS exporters."""
+    sources: list[dict[str, object]] = []
+    active_ues = 0.0
+    pdu_sessions = 0.0
+    total_rss = 0.0
+    total_cpu = 0.0
+    for name, endpoint in PROMETHEUS_ENDPOINTS.items():
+        started = time.monotonic()
+        try:
+            request = urllib.request.Request(endpoint, headers={"Accept": "text/plain"})
+            with urllib.request.urlopen(request, timeout=2) as response:
+                content = response.read(524288).decode("utf-8", errors="replace")
+            values = _prometheus_values(content)
+            ue_count = _first_metric(values, "ues_active", "fivegs_amffunction_rm_registeredsubnbr")
+            session_count = _first_metric(values, "fivegs_smffunction_sm_sessionnbr", "pdu_sessions_active")
+            rss = _first_metric(values, "process_resident_memory_bytes")
+            cpu = _first_metric(values, "process_cpu_seconds_total")
+            active_ues += ue_count or 0
+            pdu_sessions += session_count or 0
+            total_rss += rss or 0
+            total_cpu += cpu or 0
+            sources.append({"name": name, "available": True, "latencyMs": max(1, round((time.monotonic() - started) * 1000)), "metricCount": len(values)})
+        except (OSError, ValueError, urllib.error.URLError):
+            sources.append({"name": name, "available": False, "latencyMs": None, "metricCount": 0})
+    available = sum(1 for source in sources if source["available"])
+    return {
+        "available": available > 0,
+        "availableSources": available,
+        "totalSources": len(sources),
+        "activeUes": int(active_ues),
+        "pduSessions": int(pdu_sessions),
+        "processResidentMemoryBytes": int(total_rss),
+        "processCpuSeconds": round(total_cpu, 3),
+        "sources": sources,
+    }
 
 
 def _configured_ueransim_ip() -> str | None:
@@ -250,7 +315,7 @@ def build_health() -> dict[str, object]:
     if statuses == {"unavailable"}:
         core_status = "unavailable"
     interfaces = access_interface_health()
-    return {"coreStatus": core_status, "networkFunctions": functions, "accessInterfaces": interfaces, "endToEnd": end_to_end_health(interfaces)}
+    return {"coreStatus": core_status, "networkFunctions": functions, "accessInterfaces": interfaces, "endToEnd": end_to_end_health(interfaces), "metrics": prometheus_health()}
 
 
 class AgentHandler(BaseHTTPRequestHandler):

@@ -9,17 +9,38 @@ import tempfile
 
 
 class HealthTests(unittest.TestCase):
+    @patch("server.prometheus_health", return_value={"available": False})
     @patch("server.service_health", return_value=("healthy", 4))
-    def test_all_healthy(self, mocked_health):
+    def test_all_healthy(self, mocked_health, _mocked_metrics):
         payload = server.build_health()
         self.assertEqual(payload["coreStatus"], "healthy")
         self.assertEqual(len(payload["networkFunctions"]), 20)
         self.assertEqual(payload["networkFunctions"][0]["name"], "UERANSIM gNB")
         mocked_health.assert_called()
 
+    @patch("server.prometheus_health", return_value={"available": False})
     @patch("server.service_health", side_effect=[("healthy", 2)] * 19 + [("unavailable", 2)] + [("healthy", 2)] * 2)
-    def test_one_unavailable_is_degraded(self, _mocked_health):
+    def test_one_unavailable_is_degraded(self, _mocked_health, _mocked_metrics):
         self.assertEqual(server.build_health()["coreStatus"], "degraded")
+
+    def test_parses_prometheus_text_format(self):
+        values = server._prometheus_values("# HELP ues_active Active UEs\nues_active{plmn=\"00101\"} 2\nues_active{plmn=\"99970\"} 3\nprocess_cpu_seconds_total 1.25\n")
+        self.assertEqual(values["ues_active"], 5)
+        self.assertEqual(values["process_cpu_seconds_total"], 1.25)
+
+    @patch("server.urllib.request.urlopen")
+    def test_collects_prometheus_summary(self, mocked_open):
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *_args): return False
+            def read(self, _limit):
+                return b"ues_active 4\nfivegs_smffunction_sm_sessionnbr 3\nprocess_resident_memory_bytes 1024\nprocess_cpu_seconds_total 2.5\n"
+        mocked_open.return_value = Response()
+        payload = server.prometheus_health()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["availableSources"], 3)
+        self.assertEqual(payload["activeUes"], 12)
+        self.assertEqual(payload["pduSessions"], 9)
 
     def test_reads_only_allowlisted_node_files(self):
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config:

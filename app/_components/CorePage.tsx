@@ -4,6 +4,7 @@ import { getCoreHealth } from "../../lib/open5gs/health";
 import { AppShell } from "./AppShell";
 import { TopologyMap } from "./TopologyMap";
 import { EndToEndStatus } from "./EndToEndStatus";
+import { MetricsOverview } from "./MetricsOverview";
 
 const servicePaths: Record<CoreType, string[]> = {
   epc: ["ue-lte", "enb", "mme", "sgwc", "sgwu", "spgwc"],
@@ -42,6 +43,8 @@ export async function CorePage({ core }: { core: CoreType }) {
     </header>
 
     {unavailable.length ? <section className="attention-banner"><span>!</span><div><b>{unavailable.length} {unavailable.length === 1 ? "node requires" : "nodes require"} attention</b><p>{unavailable.slice(0, 4).map((node) => node.name).join(", ")}{unavailable.length > 4 ? ` and ${unavailable.length - 4} more` : ""}</p></div><a href={`/nodes/${unavailable[0].slug}`}>Investigate now →</a></section> : <section className="all-clear-banner"><span>✓</span><div><b>No issues detected</b><p>The primary service path and network functions are responding normally.</p></div></section>}
+
+    <MetricsOverview initialMetrics={health.metrics} />
 
     <section className="journey-panel" aria-labelledby="service-path-title">
       <div className="journey-heading"><div><p className="eyebrow">START HERE</p><h2 id="service-path-title">Primary service path</h2><p>Follow the connection from the device to the data network. Select any node to view its details.</p></div><span className="simple-view-tag">SIMPLE VIEW</span></div>
